@@ -1,0 +1,8 @@
+{
+	"url": "https://shopping.naver.com/home",
+	"wired": false,
+	"headless": false,
+	"silent": false,
+	"DownloadPath": "./tmp",
+	"OutputFilePath": "./imgUrlList.json"
+}
