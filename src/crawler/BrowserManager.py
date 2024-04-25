@@ -1,68 +1,83 @@
+"""
+BrowserManager v1.0.1
+
+* Required libraries (with versions)
+- selenium 4.19.0
+- selenium-wire 5.1.0
+- fake_useragent 1.5.1
+"""
+
 import selenium
 
-from typing import List
+from typing import List, Callable, Tuple, Any
 
-from urllib.parse import urljoin
-from seleniumwire import webdriver as seleniumwire_webdriver
 from selenium import webdriver
+from selenium.webdriver.chromium.options import ChromiumOptions
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.remote.webelement import WebElement
-from selenium.webdriver.remote.webdriver import WebDriver
+from selenium.webdriver.remote.webdriver import WebDriver, WebElement
 from selenium.common.exceptions import TimeoutException, StaleElementReferenceException, NoSuchElementException, WebDriverException
-
-from util.PrintUtil import PrintUtil
+from seleniumwire import webdriver as seleniumwire_webdriver
+from seleniumwire.request import Request
+from fake_useragent import UserAgent
+from urllib.parse import urljoin
 
 class BrowserManager:
 	"""
 	셀레니움 크롬 브라우저 관리자 (추후 모듈화를 위해 셀레니움 관련 로직은 최대한 여기에서만 수행)
 	"""
-	def __init__(self, isHeadless: bool, isWired: bool):
+	def __init__(self, isHeadless: bool, isWired: bool, verbose: bool = True):
 		"""
 		:param isHeadless: 백그라운드 실행 여부
 		:param isWired: selenium-wire 실행 여부
+		:param verbose: 콘솔창 로그 출력 여부
 		"""
-		# 셀레니움 사용을 숨기기 위한 User-Agent 지정
-		# (개발자가 사용하는 기기의 User-Agent가 적나라하게 드러난 것을 볼 수 있다)
-		defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+		self.isHeadless: bool = isHeadless
+		self.isWired: bool = isWired
+		self.verbose: bool = verbose
+		self.collectedRequests: List[Request] = list()
 
-		# selenium 및 selenium-wire 사용 여부 결정
-		self.isWired = isWired
+		self.options: ChromiumOptions = None
+
 		if self.isWired:
 			self.options = seleniumwire_webdriver.ChromeOptions()
 		else:
 			self.options = webdriver.ChromeOptions()
+		
+		if self.isHeadless:
+			self.options.add_argument("--headless=new")
+			self.printLog("* Option : headless mode")
 
 		self.options.add_argument("--remote-debugging-pipe")
 		self.options.add_argument("--start-maximized")
-		self.options.add_argument("user-agent=" + defaultUserAgent)
 
-		# 백그라운드 실행 여부 설정
-		if isHeadless:
-			self.options.add_argument("--headless=new")
+		userAgent: str = UserAgent().random
+		self.options.add_argument("user-agent=" + userAgent)
+		self.printLog("* User-Agent : " + userAgent)
 
 		#selenium-wire로 실행 시 SSL 이슈를 피하기 위한 처절한 분투의 결과물
 		if self.isWired:
 			self.options.add_argument("--ignore-certificate-errors")
 			self.options.add_argument("--ignore-ssl-errors")
 			self.driver = seleniumwire_webdriver.Chrome(options=self.options, seleniumwire_options={})
-			WebDriverWait(self.driver, 20)
+			self.printLog("* Option : use seleniumwire instead of selenium")
 		else:
 			self.driver = webdriver.Chrome(options=self.options)
+			self.printLog("* Option : use selenium")
 
-		# selenium-wire를 통해 수집한 HTTP request 모음
-		self.collectedRequests = list()
+		WebDriverWait(self.driver, 20)
 
-		PrintUtil.printLog("Chrome started")
+		self.printLog("Start Chrome")
 
-	def getWebDriver(self) -> WebDriver:
+	def printLog(self, log: str) -> None:
 		"""
-		웹 드라이버 반환
+		로그 출력
 
-		:return: Selenium WebDriver
+		:param log: 로그 메시지
 		"""
-		return self.driver
+		if self.verbose:
+			print(log)
 
 	def getCurrentLocation(self) -> str:
 		"""
@@ -72,19 +87,20 @@ class BrowserManager:
 		"""
 		return self.driver.current_url
 
-	def goTo(self, url: str):
+	def goTo(self, url: str, timeout: float = 20) -> None:
 		"""
 		해당 URL로 이동 및 selenium-wire를 통한 request 수집
 
 		:param url: 이동할 URL
+		:param timeout: 전체 페이지 로드 최대 대기 시간
 		"""
 		self.driver.get(url)
-		self.driver.implicitly_wait(30)
+		self.driver.implicitly_wait(timeout)
 		if self.isWired:
 			for request in self.driver.requests:
 				if request.response:
 					self.collectedRequests.append(request)
-		PrintUtil.printLog("Goto : " + url)
+		self.printLog("Goto : " + url)
 
 	def goToNewTab(self, url: str):
 		"""
@@ -95,17 +111,15 @@ class BrowserManager:
 		self.driver.switch_to.new_window("tab")
 		self.goTo(url)
 
-	def getCollectedRequests(self):
+	def getCollectedRequests(self) -> List[Request]:
 		"""
 		selenium-wire를 통해 수집한 request 목록을 반환
 
 		:return: 기 수집된 request 목록
 		"""
-		if self.isWired:
-			return self.collectedRequests
-		return None
+		return self.collectedRequests
 
-	def initCollectedRequests(self):
+	def initCollectedRequests(self) -> None:
 		"""
 		selenium-wire request 목록 초기화
 		"""
@@ -118,7 +132,7 @@ class BrowserManager:
 		현재 페이지 내 지정한 CSS Selector에 해당하는 요소들의 리스트를 대기 후 반환
 
 		:param cssSelector: 웹페이지 내 요소를 지정할 CSS Selector
-		:param float: 지정한 웹페이지 요소에 대한 최대 로드 대기 시간
+		:param timeout: 지정한 웹페이지 요소에 대한 최대 로드 대기 시간
 		:return: 해당 CSS Selector에 대한 웹페이지 요소 리스트
 		"""
 		try:
@@ -130,22 +144,26 @@ class BrowserManager:
 
 		return list()
 
-	def querySelectorAll(self, parentElement: EC.WebDriverOrWebElement, cssSelector: str) -> List[WebElement]:
+	def querySelectorAll(self, cssSelector: str, parentElement: EC.WebDriverOrWebElement, timeout: float = 20) -> List[WebElement]:
 		"""
 		현재 페이지 내 지정한 부모 요소 내 CSS Selector에 해당하는 요소들의 리스트를 반환
 
-		:param parentElement: 탐색 기준 부모 요소 (최상위인 WebDriver도 가능)
 		:param cssSelector: 웹페이지 내 요소를 지정할 CSS Selector
+		:param parentElement: 탐색 기준 부모 요소 (최상위인 WebDriver도 가능)s
+		:param timeout: 지정한 웹페이지 요소에 대한 최대 로드 대기 시간
 		:return: 해당 CSS Selector에 대한 웹페이지 요소 리스트
 		"""
-		elements: List[WebElement] = None
-		try:
-			elements = parentElement.find_elements(By.CSS_SELECTOR, cssSelector)
-		except NoSuchElementException:
-			elements = list()
-		return elements
+		retList: List[WebElement] = None
+		if type(parentElement) == WebElement:
+			try:
+				parentElement.find_elements(By.CSS_SELECTOR, cssSelector)
+			except NoSuchElementException:
+				retList = list()
+		else:
+			retList = self.waitUntil(cssSelector, timeout)
+		return retList
 
-	def forEachIframes(self, parentIframe: WebElement, iframeParamCallback: callable, extraParams: List[any] = []):
+	def forEachIframes(self, parentIframe: WebElement, iframeParamCallback: Callable[Tuple[WebElement, Any], None], extraParams: List[Any] = []) -> None:
 		"""
 		현재 페이지 내 iframe들을 재귀적으로 전수 탐색
 
@@ -155,9 +173,9 @@ class BrowserManager:
 		"""
 		iframes: List[WebElement] = None
 		if parentIframe is None:
-			iframes = self.querySelectorAll(self.driver, "iframe")
+			iframes = self.querySelectorAll("iframe", self.driver)
 		else:
-			iframes = self.querySelectorAll(parentIframe, "iframe")
+			iframes = self.querySelectorAll("iframe", parentIframe)
 		for index, iframe in enumerate(iframes):
 			src = None
 			try:
@@ -179,7 +197,7 @@ class BrowserManager:
 				self.forEachIframes(iframe, iframeParamCallback, extraParams)
 				self.driver.switch_to.parent_frame()
 			else:
-				PrintUtil.printLog("Excluded an iframe element : cannot retrieve 'src' attribute")
+				self.printLog("Excluded an iframe element : cannot retrieve 'src' attribute")
 
 	def getAttribute(self, element: WebElement, attrName: str) -> str:
 		"""

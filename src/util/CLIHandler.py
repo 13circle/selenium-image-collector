@@ -1,6 +1,8 @@
 import argparse
 import json
 
+from typing import Any
+
 class CLIHandler:
 	"""
 	CLI 인터페이스 매개변수 관리 핸들러
@@ -11,7 +13,7 @@ class CLIHandler:
 		"""
 		self.parser: argparse.ArgumentParser = parser
 
-	def parseArgs(self):
+	def parseArgs(self) -> None:
 		"""
 		CLI 도움말 생성 및 매개변수 파싱
 		"""
@@ -40,7 +42,7 @@ class CLIHandler:
 				self.parser.error("the following arguments are required: url")
 				exit(-1)
 
-	def getArg(self, argName: str) -> any:
+	def getArg(self, argName: str) -> Any:
 		"""
 		설정된 CLI 매개변수의 값을 반환
 		

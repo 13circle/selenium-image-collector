@@ -7,11 +7,9 @@ import json
 
 from typing import List
 
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.remote.webelement import WebElement
 from urllib.parse import urlparse, urljoin
 
-from .BrowserManager import BrowserManager
+from .BrowserManager import BrowserManager, EC, WebElement, Request
 from util.PrintUtil import PrintUtil
 
 class ImageScraper:
@@ -22,11 +20,11 @@ class ImageScraper:
 		"""
 		:param browser: 셀레니움 브라우저 관리자 클래스
 		"""
-		self.browser = browser
-		self.imgUrlList = list()
-		self.imgSerial = 0
+		self.browser: BrowserManager = browser
+		self.imgUrlList: List[str] = list()
+		self.imgSerial: int = 0
 
-	def scrapeImageOfCurrentPage(self, parentElement: EC.WebDriverOrWebElement, downloadRootPath: str):
+	def scrapeImageOfCurrentPage(self, parentElement: EC.WebDriverOrWebElement, downloadRootPath: str) -> None:
 		"""
 		해당 URL의 웹페이지 내 모든 이미지들을 스크래핑 및 다운로드하는 핵심 로직 (iframe 전수 탐색 시 callback으로 사용됨)
 
@@ -34,12 +32,9 @@ class ImageScraper:
 		:param downloadRootPath: 이미지 다운로드 디렉터리 경로
 		"""
 		elements: List[WebElement] = None
-		if type(parentElement) == WebElement:
-			elements = self.browser.querySelectorAll(parentElement, "img")
-			elements.extend(self.browser.querySelectorAll(parentElement, "picture > source"))
-		else:
-			elements = self.browser.waitUntil("img", 30)
-			elements.extend(self.browser.waitUntil("picture > source", 30))
+		elements = self.browser.querySelectorAll("img", parentElement, 30)
+		elements.extend(self.browser.querySelectorAll("picture > source", parentElement, 30))
+
 		for element in elements:
 			src: str = self.browser.getAttribute(element, "srcset")
 			if src is None:
@@ -70,7 +65,7 @@ class ImageScraper:
 			else:
 				PrintUtil.printLog("scrapeImageOfCurrentPage : src/srcset attribute is not available")
 
-	def scrape(self, url: str, downloadRootPath: str, outputFilePath: str):
+	def scrape(self, url: str, downloadRootPath: str, outputFilePath: str) -> None:
 		"""
 		해당 URL 주소의 웹페이지 내에세 이미지 스크래핑을 수행하는 트리거 또는 진입점
 
@@ -80,11 +75,9 @@ class ImageScraper:
 		"""
 		self.browser.goTo(url)
 
-		collectedRequests = self.browser.getCollectedRequests()
-		if collectedRequests is None:
-			self.scrapeImageOfCurrentPage(self.browser.getWebDriver(), downloadRootPath)
-			self.browser.forEachIframes(None, self.scrapeImageOfCurrentPage, [downloadRootPath])
-		else:
+		if self.browser.isWired:
+			collectedRequests = self.browser.getCollectedRequests()
+
 			if len(collectedRequests) > 0:
 				PrintUtil.printLog("Start collecting images... ({reqLen})".format(reqLen=str(len(collectedRequests))))
 			else:
@@ -109,6 +102,9 @@ class ImageScraper:
 					except:
 						PrintUtil.printLog("Failed to save image : " + str(request.path))
 			self.browser.initCollectedRequests()
+		else:
+			self.scrapeImageOfCurrentPage(self.browser.driver, downloadRootPath)
+			self.browser.forEachIframes(None, self.scrapeImageOfCurrentPage, [downloadRootPath])
 
 		if outputFilePath is not None and len(self.imgUrlList) > 0:
 			with open(outputFilePath, "w") as outFile:
@@ -118,7 +114,7 @@ class ImageScraper:
 		for imgUrl in self.imgUrlList:
 			PrintUtil.printLog(imgUrl)
 
-	def downloadImage(self, imgUrl: str, savePath: str):
+	def downloadImage(self, imgUrl: str, savePath: str) -> bool:
 		"""
 		해당 URL에 대한 이미지 다운로드 및 저장
 
@@ -128,7 +124,7 @@ class ImageScraper:
 		isSuccess = False
 
 		requests_cookies = {}
-		cookies = self.browser.getWebDriver().get_cookies()
+		cookies = self.browser.driver.get_cookies()
 		for cookie in cookies:
 			requests_cookies[cookie["name"]] = cookie["value"]
 
@@ -152,13 +148,7 @@ class ImageScraper:
 
 		return isSuccess
 
-	def saveScreenshot(self, element: WebElement, savePath: str):
-		"""
-		해당 웹페이지 요소에 대한 캡쳐 이미지 저장
-		
-		:param element: 캡쳐할 웹페이지 요소
-		:param savePath: 캡쳐한 이미지 저장 경로
-		"""
+	def saveScreenshot(self, element: WebElement, savePath: str) -> None:
 		if self.browser.saveElementPNGScreenshot(element, savePath):
 			PrintUtil.printLog("Image saved successfully : " + savePath)
 		else:
