@@ -15,12 +15,24 @@ from .BrowserManager import BrowserManager
 from util.PrintUtil import PrintUtil
 
 class ImageScraper:
+	"""
+	셀레니움 기반 브라우저 내 이미지 스크래퍼
+	"""
 	def __init__(self, browser: BrowserManager):
+		"""
+		:param browser: 셀레니움 브라우저 관리자 클래스
+		"""
 		self.browser = browser
 		self.imgUrlList = list()
 		self.imgSerial = 0
 
 	def scrapeImageOfCurrentPage(self, parentElement: EC.WebDriverOrWebElement, downloadRootPath: str):
+		"""
+		해당 URL의 웹페이지 내 모든 이미지들을 스크래핑 및 다운로드하는 핵심 로직 (iframe 전수 탐색 시 callback으로 사용됨)
+
+		:param parentElement: 탐색의 기준이 되는 부모 웹페이지 요소 (iframe 전수 탐색 시 iframe 요소가 여기에 해당함)
+		:param downloadRootPath: 이미지 다운로드 디렉터리 경로
+		"""
 		elements: List[WebElement] = None
 		if type(parentElement) == WebElement:
 			elements = self.browser.querySelectorAll(parentElement, "img")
@@ -59,6 +71,13 @@ class ImageScraper:
 				PrintUtil.printLog("scrapeImageOfCurrentPage : src/srcset attribute is not available")
 
 	def scrape(self, url: str, downloadRootPath: str, outputFilePath: str):
+		"""
+		해당 URL 주소의 웹페이지 내에세 이미지 스크래핑을 수행하는 트리거 또는 진입점
+
+		:param url: 이동 및 이미지 스크래핑을 수행할 웹페이지의 URL 주소
+		:param downloadRootPath: 스크래핑한 이미지를 저장할 디렉터리 경로
+		:param outputFilePath: 스크래핑한 이미지의 URL을 저장할 JSON 파일 경로
+		"""
 		self.browser.goTo(url)
 
 		collectedRequests = self.browser.getCollectedRequests()
@@ -100,6 +119,12 @@ class ImageScraper:
 			PrintUtil.printLog(imgUrl)
 
 	def downloadImage(self, imgUrl: str, savePath: str):
+		"""
+		해당 URL에 대한 이미지 다운로드 및 저장
+
+		:param imgUrl: 다운받을 이미지 URL
+		:param savePath: 다운받은 이미지 저장 경로
+		"""
 		isSuccess = False
 
 		requests_cookies = {}
@@ -128,6 +153,12 @@ class ImageScraper:
 		return isSuccess
 
 	def saveScreenshot(self, element: WebElement, savePath: str):
+		"""
+		해당 웹페이지 요소에 대한 캡쳐 이미지 저장
+		
+		:param element: 캡쳐할 웹페이지 요소
+		:param savePath: 캡쳐한 이미지 저장 경로
+		"""
 		if self.browser.saveElementPNGScreenshot(element, savePath):
 			PrintUtil.printLog("Image saved successfully : " + savePath)
 		else:

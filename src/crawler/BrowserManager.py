@@ -15,9 +15,19 @@ from selenium.common.exceptions import TimeoutException, StaleElementReferenceEx
 from util.PrintUtil import PrintUtil
 
 class BrowserManager:
+	"""
+	셀레니움 크롬 브라우저 관리자 (추후 모듈화를 위해 셀레니움 관련 로직은 최대한 여기에서만 수행)
+	"""
 	def __init__(self, isHeadless: bool, isWired: bool):
+		"""
+		:param isHeadless: 백그라운드 실행 여부
+		:param isWired: selenium-wire 실행 여부
+		"""
+		# 셀레니움 사용을 숨기기 위한 User-Agent 지정
+		# (개발자가 사용하는 기기의 User-Agent가 적나라하게 드러난 것을 볼 수 있다)
 		defaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 
+		# selenium 및 selenium-wire 사용 여부 결정
 		self.isWired = isWired
 		if self.isWired:
 			self.options = seleniumwire_webdriver.ChromeOptions()
@@ -28,9 +38,11 @@ class BrowserManager:
 		self.options.add_argument("--start-maximized")
 		self.options.add_argument("user-agent=" + defaultUserAgent)
 
+		# 백그라운드 실행 여부 설정
 		if isHeadless:
 			self.options.add_argument("--headless=new")
 
+		#selenium-wire로 실행 시 SSL 이슈를 피하기 위한 처절한 분투의 결과물
 		if self.isWired:
 			self.options.add_argument("--ignore-certificate-errors")
 			self.options.add_argument("--ignore-ssl-errors")
@@ -39,17 +51,33 @@ class BrowserManager:
 		else:
 			self.driver = webdriver.Chrome(options=self.options)
 
+		# selenium-wire를 통해 수집한 HTTP request 모음
 		self.collectedRequests = list()
 
 		PrintUtil.printLog("Chrome started")
 
 	def getWebDriver(self) -> WebDriver:
+		"""
+		웹 드라이버 반환
+
+		:return: Selenium WebDriver
+		"""
 		return self.driver
 
 	def getCurrentLocation(self) -> str:
+		"""
+		현재 브라우저의 주소 위치를 반환
+
+		:return: 현재 URL
+		"""
 		return self.driver.current_url
 
 	def goTo(self, url: str):
+		"""
+		해당 URL로 이동 및 selenium-wire를 통한 request 수집
+
+		:param url: 이동할 URL
+		"""
 		self.driver.get(url)
 		self.driver.implicitly_wait(30)
 		if self.isWired:
@@ -59,20 +87,40 @@ class BrowserManager:
 		PrintUtil.printLog("Goto : " + url)
 
 	def goToNewTab(self, url: str):
+		"""
+		새 탭에서 해당 URL로 이동
+
+		:param url: 이동할 URL
+		"""
 		self.driver.switch_to.new_window("tab")
 		self.goTo(url)
 
 	def getCollectedRequests(self):
+		"""
+		selenium-wire를 통해 수집한 request 목록을 반환
+
+		:return: 기 수집된 request 목록
+		"""
 		if self.isWired:
 			return self.collectedRequests
 		return None
 
 	def initCollectedRequests(self):
+		"""
+		selenium-wire request 목록 초기화
+		"""
 		if self.isWired:
 			self.collectedRequests.clear()
 			del self.driver.requests
 
 	def waitUntil(self, cssSelector: str, timeout: float) -> List[WebElement]:
+		"""
+		현재 페이지 내 지정한 CSS Selector에 해당하는 요소들의 리스트를 대기 후 반환
+
+		:param cssSelector: 웹페이지 내 요소를 지정할 CSS Selector
+		:param float: 지정한 웹페이지 요소에 대한 최대 로드 대기 시간
+		:return: 해당 CSS Selector에 대한 웹페이지 요소 리스트
+		"""
 		try:
 			return WebDriverWait(self.driver, timeout).until(
 				EC.presence_of_all_elements_located(( By.CSS_SELECTOR, cssSelector ))
@@ -83,6 +131,13 @@ class BrowserManager:
 		return list()
 
 	def querySelectorAll(self, parentElement: EC.WebDriverOrWebElement, cssSelector: str) -> List[WebElement]:
+		"""
+		현재 페이지 내 지정한 부모 요소 내 CSS Selector에 해당하는 요소들의 리스트를 반환
+
+		:param parentElement: 탐색 기준 부모 요소 (최상위인 WebDriver도 가능)
+		:param cssSelector: 웹페이지 내 요소를 지정할 CSS Selector
+		:return: 해당 CSS Selector에 대한 웹페이지 요소 리스트
+		"""
 		elements: List[WebElement] = None
 		try:
 			elements = parentElement.find_elements(By.CSS_SELECTOR, cssSelector)
@@ -91,6 +146,13 @@ class BrowserManager:
 		return elements
 
 	def forEachIframes(self, parentIframe: WebElement, iframeParamCallback: callable, extraParams: List[any] = []):
+		"""
+		현재 페이지 내 iframe들을 재귀적으로 전수 탐색
+
+		:param parentIframe: 탐색 기준 부모 iframe (최상위 페이지에 대해서는 None)
+		:param iframeParamCallback: 각 iframe에 대한 callback (iframe을 기본 인자로 둠)
+		:param extraParams: callback에 대한 추가 파라미터
+		"""
 		iframes: List[WebElement] = None
 		if parentIframe is None:
 			iframes = self.querySelectorAll(self.driver, "iframe")
@@ -120,6 +182,13 @@ class BrowserManager:
 				PrintUtil.printLog("Excluded an iframe element : cannot retrieve 'src' attribute")
 
 	def getAttribute(self, element: WebElement, attrName: str) -> str:
+		"""
+		해당 웹페이지 요소에 대한 HTML 속성값을 반환
+
+		:param element: 웹페이지 요소
+		:param attrName: 값을 가져올 속성명
+		:return: 해당 속성값
+		"""
 		try:
 			return element.get_dom_attribute(attrName)
 		except NoSuchElementException:
@@ -129,6 +198,13 @@ class BrowserManager:
 		return None
 
 	def saveElementPNGScreenshot(self, element: WebElement, savePath: str) -> bool:
+		"""
+		해당 웹페이지 요소의 브라우저 내 모습을 캡쳐하여 PNG 이미지 파일로 저장
+
+		:param element: 캡쳐할 웹페이지 요소
+		:param savePath: 캡쳐 이미지 저장 경로
+		:return: 캡쳐 및 저장 성공 여부
+		"""
 		if element is None:
 			return False
 		try:
@@ -138,7 +214,13 @@ class BrowserManager:
 		return False
 
 	def closeTab(self):
+		"""
+		goToNewTab으로 생성한 브라우저 탭 종료
+		"""
 		self.driver.close()
 
 	def exitBrowser(self):
+		"""
+		셀레니움 크롬 브라우저 종료
+		"""
 		self.driver.quit()
