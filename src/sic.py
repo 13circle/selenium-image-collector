@@ -22,6 +22,7 @@ def main() -> None:
 	wired: bool = cliHander.getArg("wired")						# selenium-wire HTTP request 캡쳐 수행 여부
 	downPath: str = cliHander.getArg("DownloadPath")			# 이미지 저장 경로 (디렉터리)
 	outputFilePath: str = cliHander.getArg("OutputFilePath")	# 이미지 URL 목록 저장 경로 (JSON 파일)
+	cssSelector: str = cliHander.getArg("CSSSelector")			# 이미지 요소의 CSS Selector
 
 	# 로그 출력 여부 설정
 	PrintUtil.isPrintable = not silent
@@ -33,9 +34,10 @@ def main() -> None:
 	imageScraper = ImageScraper(browserManager)
 
 	# 이미지 스크래핑 시작
-	imageScraper.scrape(url, downPath, outputFilePath)
+	imageScraper.scrape(url, cssSelector, downPath, outputFilePath)
 
 	# 셀레니움 크롬 브라우저 종료
 	browserManager.exitBrowser()
 
-main()
+if __name__ == '__main__':
+	main()

@@ -1,7 +1,7 @@
 {
 	"url": "https://deltalink-asia.com/Introduce",
 	"wired": true,
-	"headless": false,
+	"headless": true,
 	"silent": false,
 	"DownloadPath": "./tmp",
 	"OutputFilePath": "./imgUrlList.json"

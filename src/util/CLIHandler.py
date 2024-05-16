@@ -24,6 +24,7 @@ class CLIHandler:
 		self.parser.add_argument("-s", "--silent", help="Hide image URL output", action="store_true")
 		self.parser.add_argument("-d", "--download", dest="DownloadPath", help="Download listed images to a destinated directory (relative path available)", type=str)
 		self.parser.add_argument("-o", "--out", dest="OutputFilePath", help="Write image URL list to a destinated JSON file", type=str)
+		self.parser.add_argument("-sel", "--css-selector", dest="CSSSelector", help="CSS selector for image element", type=str)
 		self.parser.add_argument("-c", "--config", dest="ConfigPath", help="Configuration file path (shortens CLI inputs)", type=str)
 
 		# CLI 매개변수 파싱 수행

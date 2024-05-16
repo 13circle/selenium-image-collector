@@ -24,16 +24,20 @@ class ImageScraper:
 		self.imgUrlList: List[str] = list()
 		self.imgSerial: int = 0
 
-	def scrapeImageOfCurrentPage(self, parentElement: EC.WebDriverOrWebElement, downloadRootPath: str) -> None:
+	def scrapeImageOfCurrentPage(self, parentElement: EC.WebDriverOrWebElement, cssSelector: str, downloadRootPath: str) -> None:
 		"""
 		해당 URL의 웹페이지 내 모든 이미지들을 스크래핑 및 다운로드하는 핵심 로직 (iframe 전수 탐색 시 callback으로 사용됨)
 
 		:param parentElement: 탐색의 기준이 되는 부모 웹페이지 요소 (iframe 전수 탐색 시 iframe 요소가 여기에 해당함)
+		:param cssSelector: 이미지 요소의 CSS Selector (미지정 시 None)
 		:param downloadRootPath: 이미지 다운로드 디렉터리 경로
 		"""
 		elements: List[WebElement] = None
-		elements = self.browser.querySelectorAll("img", parentElement, 30)
-		elements.extend(self.browser.querySelectorAll("picture > source", parentElement, 30))
+		if cssSelector is None:
+			elements = self.browser.querySelectorAll("img", parentElement, 30)
+			elements.extend(self.browser.querySelectorAll("picture > source", parentElement, 30))
+		else:
+			elements = self.browser.querySelectorAll(cssSelector, parentElement, 30)
 
 		for element in elements:
 			src: str = self.browser.getAttribute(element, "srcset")
@@ -65,11 +69,12 @@ class ImageScraper:
 			else:
 				PrintUtil.printLog("scrapeImageOfCurrentPage : src/srcset attribute is not available")
 
-	def scrape(self, url: str, downloadRootPath: str, outputFilePath: str) -> None:
+	def scrape(self, url: str, cssSelector: str, downloadRootPath: str, outputFilePath: str) -> None:
 		"""
 		해당 URL 주소의 웹페이지 내에세 이미지 스크래핑을 수행하는 트리거 또는 진입점
 
 		:param url: 이동 및 이미지 스크래핑을 수행할 웹페이지의 URL 주소
+		:param cssSelector: 이미지 요소의 CSS Selector (미지정 시 None)
 		:param downloadRootPath: 스크래핑한 이미지를 저장할 디렉터리 경로
 		:param outputFilePath: 스크래핑한 이미지의 URL을 저장할 JSON 파일 경로
 		"""
@@ -103,8 +108,8 @@ class ImageScraper:
 						PrintUtil.printLog("Failed to save image : " + str(request.path))
 			self.browser.initCollectedRequests()
 		else:
-			self.scrapeImageOfCurrentPage(self.browser.driver, downloadRootPath)
-			self.browser.forEachIframes(None, self.scrapeImageOfCurrentPage, [downloadRootPath])
+			self.scrapeImageOfCurrentPage(self.browser.driver, cssSelector, downloadRootPath)
+			self.browser.forEachIframes(None, self.scrapeImageOfCurrentPage, [cssSelector, downloadRootPath])
 
 		if outputFilePath is not None and len(self.imgUrlList) > 0:
 			with open(outputFilePath, "w") as outFile:
@@ -138,7 +143,7 @@ class ImageScraper:
 				PrintUtil.printLog("Image downloaded successfully : " + savePath)
 		else:
 			self.browser.goToNewTab(imgUrl)
-			imgElementList = self.browser.waitUntil("img", 20)
+			imgElementList = self.browser.querySelectorAll("img", 20)
 			if len(imgElementList) > 0:
 				self.saveScreenshot(imgElementList[0], savePath)
 				PrintUtil.printLog("downloadImage : " + savePath)

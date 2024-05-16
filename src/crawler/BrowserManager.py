@@ -22,6 +22,7 @@ from seleniumwire import webdriver as seleniumwire_webdriver
 from seleniumwire.request import Request
 from fake_useragent import UserAgent
 from urllib.parse import urljoin
+from cssselect import GenericTranslator, SelectorError
 
 class BrowserManager:
 	"""
